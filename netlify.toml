@@ -1,0 +1,11 @@
+[build]
+  # This tells Netlify to trigger the translator
+  command = "npm run build"
+  # This tells Netlify where the translated, ready-to-launch files will be
+  publish = "dist"
+
+# This fixes the React routing issue so users can refresh the page safely
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
