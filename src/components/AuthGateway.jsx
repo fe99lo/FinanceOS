@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import authApi from './services/authApi.js';
+import authApi from '../services/authApi.js';
 
 export default function AuthGateway({ onAuthSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
