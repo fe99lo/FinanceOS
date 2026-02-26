@@ -1,9 +1,9 @@
 // src/App.jsx
 import React, { useState } from 'react';
-import AuthGateway from './components/AuthGateway';
-import UserDashboard from './components/UserDashboard';
-import AgentDashboard from './components/AgentDashboard';
-import AdminDashboard from './components/AdminDashboard';
+import AuthGateway from './components/AuthGateway.jsx';
+import UserDashboard from './components/UserDashboard.jsx';
+import AgentDashboard from './components/AgentDashboard.jsx';
+import AdminDashboard from './components/AdminDashboard.jsx';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
