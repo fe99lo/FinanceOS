@@ -3,9 +3,9 @@ import authApi from './services/authApi.js';
 
 export default function AuthGateway({ onAuthSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(''); // Keeping our Phone Number system!
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
+  const [fullName, setFullName] = useState(''); // Keeping our Full Name system!
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -14,6 +14,7 @@ export default function AuthGateway({ onAuthSuccess }) {
     setLoading(true); setError('');
     try {
       let user;
+      // Our exact system logic is preserved
       if (isLogin) {
         user = await authApi.login(phone, password);
       } else {
@@ -27,51 +28,86 @@ export default function AuthGateway({ onAuthSuccess }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-8">
+    /* The Deep Navy Background from your prototype */
+    <div className="min-h-screen bg-[#0b1121] flex items-center justify-center p-4 font-sans">
+      
+      /* The Card: Slate navy, subtle border, perfectly rounded */
+      <div className="w-full max-w-[400px] bg-[#151c2c] border border-slate-800/60 rounded-xl p-8 shadow-2xl">
         
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg shadow-blue-500/30">
-            <span className="text-2xl font-black text-white">F</span>
-          </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">FinanceOS</h1>
-          <p className="text-slate-400 text-sm mt-1">The KejaLink Financial Gateway</p>
+        {/* Header Section */}
+        <div className="text-center mb-8 pt-2">
+          <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">FinanceOS</h1>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
+            Secure Gateway
+          </p>
         </div>
 
-        {error && <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-xl mb-6 text-sm text-center">{error}</div>}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg mb-6 text-sm text-center">
+            {error}
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Input Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          
           {!isLogin && (
-            <div>
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Full Name</label>
-              <input type="text" required value={fullName} onChange={e => setFullName(e.target.value)}
-                className="w-full mt-1 p-4 bg-slate-950 border border-slate-800 rounded-xl text-white outline-none focus:border-blue-500 transition" placeholder="John Doe" />
-            </div>
+            <input 
+              type="text" 
+              required 
+              value={fullName} 
+              onChange={e => setFullName(e.target.value)}
+              className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3.5 focus:outline-none focus:border-[#2a68ff] transition-colors text-sm placeholder:text-slate-500" 
+              placeholder="Full Name" 
+            />
           )}
           
-          <div>
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Phone Number</label>
-            <input type="tel" required value={phone} onChange={e => setPhone(e.target.value)}
-              className="w-full mt-1 p-4 bg-slate-950 border border-slate-800 rounded-xl text-white outline-none focus:border-blue-500 transition font-mono" placeholder="07XX..." />
-          </div>
+          {/* Using Phone Number, but styled like your prototype */}
+          <input 
+            type="tel" 
+            required 
+            value={phone} 
+            onChange={e => setPhone(e.target.value)}
+            className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3.5 focus:outline-none focus:border-[#2a68ff] transition-colors text-sm placeholder:text-slate-500" 
+            placeholder="Phone Number" 
+          />
 
-          <div>
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Secure Password</label>
-            <input type="password" required value={password} onChange={e => setPassword(e.target.value)}
-              className="w-full mt-1 p-4 bg-slate-950 border border-slate-800 rounded-xl text-white outline-none focus:border-blue-500 transition" placeholder="••••••••" />
-          </div>
+          <input 
+            type="password" 
+            required 
+            value={password} 
+            onChange={e => setPassword(e.target.value)}
+            className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3.5 focus:outline-none focus:border-[#2a68ff] transition-colors text-sm placeholder:text-slate-500" 
+            placeholder="Password" 
+          />
 
-          <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl transition shadow-lg shadow-blue-500/25 mt-2">
-            {loading ? 'Processing...' : (isLogin ? 'Secure Log In' : 'Create Account')}
+          {/* The Exact Blue Button from the prototype */}
+          <button 
+            type="submit" 
+            disabled={loading} 
+            className="w-full bg-[#2a68ff] hover:bg-[#2055db] text-white font-semibold rounded-lg py-3.5 mt-2 transition-colors text-sm shadow-lg shadow-blue-500/20"
+          >
+            {loading ? 'Processing...' : (isLogin ? 'Secure Login' : 'Create Account')}
           </button>
         </form>
 
-        <p className="text-center mt-6 text-slate-400 text-sm">
-          {isLogin ? "New to FinanceOS? " : "Already have an account? "}
-          <button onClick={() => setIsLogin(!isLogin)} className="text-blue-400 font-bold hover:text-blue-300 transition">
-            {isLogin ? "Sign Up" : "Log In"}
+        {/* The Text Links directly matching your image */}
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <button 
+            onClick={() => setIsLogin(!isLogin)} 
+            type="button"
+            className="text-sm text-slate-400 hover:text-white transition-colors"
+          >
+            {isLogin ? "Create new account" : "Back to Secure Login"}
           </button>
-        </p>
+          
+          {isLogin && (
+            <button type="button" className="text-sm text-slate-500 hover:text-slate-300 transition-colors">
+              Forgot Password?
+            </button>
+          )}
+        </div>
+
       </div>
     </div>
   );
