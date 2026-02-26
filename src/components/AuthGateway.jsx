@@ -1,6 +1,6 @@
 // src/components/AuthGateway.jsx
 import React, { useState } from 'react';
-import { loginUser, registerUser, requestPasswordReset, verifyAndResetPassword } from '../services/authApi';
+import { loginUser, registerUser, requestPasswordReset, verifyAndResetPassword } from '../services/authApi.js';
 
 const AuthGateway = ({ onAuthSuccess }) => {
   const [view, setView] = useState('login'); // 'login', 'signup', 'forgot', 'reset'
