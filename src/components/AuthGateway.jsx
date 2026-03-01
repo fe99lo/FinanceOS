@@ -3,9 +3,10 @@ import authApi from '../services/authApi.js';
 
 export default function AuthGateway({ onAuthSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
-  const [phone, setPhone] = useState(''); // Keeping our Phone Number system!
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState(''); 
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState(''); // Keeping our Full Name system!
+  const [fullName, setFullName] = useState(''); 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -14,11 +15,12 @@ export default function AuthGateway({ onAuthSuccess }) {
     setLoading(true); setError('');
     try {
       let user;
-      // Our exact system logic is preserved
       if (isLogin) {
-        user = await authApi.login(phone, password);
+        // Login now uses Email, matching your prototype!
+        user = await authApi.login(email, password);
       } else {
-        user = await authApi.register(phone, fullName, password);
+        // Registration grabs everything we need for the database
+        user = await authApi.register(email, phone, fullName, password);
       }
       onAuthSuccess(user);
     } catch (err) {
@@ -28,13 +30,9 @@ export default function AuthGateway({ onAuthSuccess }) {
   };
 
   return (
-    /* The Deep Navy Background from your prototype */
     <div className="min-h-screen bg-[#0b1121] flex items-center justify-center p-4 font-sans">
-      
-      /* The Card: Slate navy, subtle border, perfectly rounded */
       <div className="w-full max-w-[400px] bg-[#151c2c] border border-slate-800/60 rounded-xl p-8 shadow-2xl">
         
-        {/* Header Section */}
         <div className="text-center mb-8 pt-2">
           <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">FinanceOS</h1>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
@@ -48,28 +46,36 @@ export default function AuthGateway({ onAuthSuccess }) {
           </div>
         )}
 
-        {/* Input Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           
           {!isLogin && (
-            <input 
-              type="text" 
-              required 
-              value={fullName} 
-              onChange={e => setFullName(e.target.value)}
-              className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3.5 focus:outline-none focus:border-[#2a68ff] transition-colors text-sm placeholder:text-slate-500" 
-              placeholder="Full Name" 
-            />
+            <>
+              <input 
+                type="text" 
+                required 
+                value={fullName} 
+                onChange={e => setFullName(e.target.value)}
+                className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3.5 focus:outline-none focus:border-[#2a68ff] transition-colors text-sm placeholder:text-slate-500" 
+                placeholder="Full Name" 
+              />
+              <input 
+                type="tel" 
+                required 
+                value={phone} 
+                onChange={e => setPhone(e.target.value)}
+                className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3.5 focus:outline-none focus:border-[#2a68ff] transition-colors text-sm placeholder:text-slate-500" 
+                placeholder="Phone Number" 
+              />
+            </>
           )}
           
-          {/* Using Phone Number, but styled like your prototype */}
           <input 
-            type="tel" 
+            type="email" 
             required 
-            value={phone} 
-            onChange={e => setPhone(e.target.value)}
+            value={email} 
+            onChange={e => setEmail(e.target.value)}
             className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3.5 focus:outline-none focus:border-[#2a68ff] transition-colors text-sm placeholder:text-slate-500" 
-            placeholder="Phone Number" 
+            placeholder="Email Address" 
           />
 
           <input 
@@ -81,7 +87,6 @@ export default function AuthGateway({ onAuthSuccess }) {
             placeholder="Password" 
           />
 
-          {/* The Exact Blue Button from the prototype */}
           <button 
             type="submit" 
             disabled={loading} 
@@ -91,7 +96,6 @@ export default function AuthGateway({ onAuthSuccess }) {
           </button>
         </form>
 
-        {/* The Text Links directly matching your image */}
         <div className="mt-6 flex flex-col items-center gap-3">
           <button 
             onClick={() => setIsLogin(!isLogin)} 

@@ -1,29 +1,27 @@
 import { supabase } from '../supabaseClient';
 
-// We package everything inside this single 'authApi' object
 const authApi = {
 
-  // 1. Perfectly matched to AuthGateway: authApi.login(phone, password)
-  login: async (phone, password) => {
+  // Login now checks the Email column instead of Phone
+  login: async (email, password) => {
     const { data, error } = await supabase
       .from('profiles')
       .select('id, auth_uid, email, role, full_name, phone_number')
-      .eq('phone_number', phone) // Uses our phone system
+      .eq('email', email) 
       .eq('pass_hash', password) 
       .single();
 
-    if (error || !data) throw new Error("Invalid phone number or password");
+    if (error || !data) throw new Error("Invalid email or password");
     return data;
   },
 
-  // 2. Perfectly matched to AuthGateway: authApi.register(phone, fullName, password)
-  register: async (phone, fullName, password) => {
-    // This inserts the user. The Supabase trigger we wrote will automatically
-    // create their wallet and give the first 100 users the $50 bonus!
+  // Registration now saves BOTH Email and Phone to the database
+  register: async (email, phone, fullName, password) => {
     const { data, error } = await supabase
       .from('profiles')
       .insert([{ 
-        phone_number: phone, // Uses our phone system
+        email: email,
+        phone_number: phone, 
         full_name: fullName,
         pass_hash: password, 
         role: 'USER' 
@@ -35,7 +33,6 @@ const authApi = {
     return data;
   },
 
-  // 3. Kept your advanced password reset functions intact for the future!
   requestPasswordReset: async (email) => {
     const { data, error } = await supabase.rpc('generate_recovery_token', { target_email: email });
     if (error) throw new Error("Failed to generate token.");
@@ -53,5 +50,4 @@ const authApi = {
   }
 };
 
-// Now, the box actually exists to be exported!
 export default authApi;
