@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 // Import your secure Supabase connection
-import { supabase } from './supabaseClient.js'; 
+import { supabase } from '../supabaseClient.js'; 
 
 export default function UserDashboard({ user, onLogout }) {
   const [balance, setBalance] = useState(0); 
