@@ -49,3 +49,5 @@ export const verifyAndResetPassword = async (email, token, newPassword) => {
   if (error || !data) throw new Error("Invalid or expired PIN.");
   return data;
 };
+
+export default authApi;
