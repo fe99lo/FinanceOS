@@ -8,11 +8,11 @@ export default function UserDashboard({ user, onLogout }) {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Navigation / Modal Engine State
-  const [activeView, setActiveView] = useState('DASHBOARD'); // DASHBOARD, DEPOSIT, SEND, WITHDRAW
+  // Navigation / Modal Engine State (UNTOUCHED)
+  const [activeView, setActiveView] = useState('DASHBOARD'); 
   const [txAmount, setTxAmount] = useState('');
-  const [txRecipient, setTxRecipient] = useState('');
-  const [txMethod, setTxMethod] = useState('AGENT'); // For Withdrawals: 'AGENT' or 'MPESA'
+  const [txRecipient, setTxRecipient] = useState(''); // Now used for the @tag
+  const [txMethod, setTxMethod] = useState('AGENT'); 
   const [txLoading, setTxLoading] = useState(false);
   const [txError, setTxError] = useState('');
 
@@ -59,9 +59,7 @@ export default function UserDashboard({ user, onLogout }) {
     setTxLoading(true); setTxError('');
     try {
       console.log(`Initiating M-Pesa STK push for ${txAmount} KES`);
-      setTimeout(() => {
-        setTxLoading(false); setActiveView('DASHBOARD');
-      }, 1500);
+      setTimeout(() => { setTxLoading(false); setActiveView('DASHBOARD'); }, 1500);
     } catch (err) {
       setTxError(err.message); setTxLoading(false);
     }
@@ -69,31 +67,26 @@ export default function UserDashboard({ user, onLogout }) {
 
   const handleP2PSend = async (e) => {
     e.preventDefault();
-    setTxLoading(true); 
-    setTxError('');
-    
+    setTxLoading(true); setTxError('');
     try {
-      // We call the SQL RPC function we just created in Supabase
+      // Clean up the input just in case they typed the "@" symbol themselves
+      const cleanTag = txRecipient.replace('@', '').trim().toLowerCase();
+      
       const { data, error } = await supabase.rpc('p2p_transfer', {
         sender_id: user.id,
-        recipient_phone: txRecipient,
+        recipient_tag: cleanTag, // Now sending the tag to the backend!
         transfer_amount: Number(txAmount)
       });
 
       if (error) throw error;
 
-      // If successful, close the modal and refresh the dashboard data
       setTxLoading(false);
       setTxAmount('');
       setTxRecipient('');
       setActiveView('DASHBOARD');
-      
-      // Force a page reload to instantly show the new balance and receipts
-      // In a later phase, we can update the state directly for a smoother feel
       window.location.reload(); 
-
     } catch (err) {
-      setTxError(err.message || "Transfer failed. Please check the number and try again.");
+      setTxError(err.message || "Transfer failed. Please check the tag and try again.");
       setTxLoading(false);
     }
   };
@@ -102,14 +95,9 @@ export default function UserDashboard({ user, onLogout }) {
     e.preventDefault();
     setTxLoading(true); setTxError('');
     try {
-      if (Number(txAmount) > balanceUSD) {
-        throw new Error("Insufficient funds for this withdrawal.");
-      }
+      if (Number(txAmount) > balanceUSD) throw new Error("Insufficient funds for this withdrawal.");
       console.log(`Initiating ${txMethod} withdrawal for $${txAmount}`);
-      // TODO: Call Supabase Edge Function to lock funds and alert Agent/M-Pesa
-      setTimeout(() => {
-        setTxLoading(false); setActiveView('DASHBOARD');
-      }, 1500);
+      setTimeout(() => { setTxLoading(false); setActiveView('DASHBOARD'); }, 1500);
     } catch (err) {
       setTxError(err.message); setTxLoading(false);
     }
@@ -118,7 +106,7 @@ export default function UserDashboard({ user, onLogout }) {
   const balanceKES = exchangeRate ? (balanceUSD * exchangeRate).toFixed(2) : '...';
 
   // ==========================================
-  // VIEW RENDERERS (Memory Efficient UIs)
+  // VIEW RENDERERS (Styling untouched)
   // ==========================================
 
   if (activeView === 'DEPOSIT') {
@@ -137,8 +125,7 @@ export default function UserDashboard({ user, onLogout }) {
             <div>
               <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Amount (KES)</label>
               <input type="number" required min="10" value={txAmount} onChange={(e) => setTxAmount(e.target.value)}
-                className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500" 
-                placeholder="e.g. 1000" />
+                className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500" placeholder="e.g. 1000" />
             </div>
             <button type="submit" disabled={txLoading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg py-3.5 transition">
               {txLoading ? 'Connecting to Safaricom...' : 'Trigger M-Pesa Express'}
@@ -157,22 +144,22 @@ export default function UserDashboard({ user, onLogout }) {
             ← Back to Dashboard
           </button>
           <h2 className="text-2xl font-bold text-white mb-2">Send Money</h2>
-          <p className="text-slate-400 text-sm mb-6">Instantly send USD to any FinanceOS user globally.</p>
+          <p className="text-slate-400 text-sm mb-6">Instantly send USD via Finance Tag.</p>
           
           {txError && <div className="bg-red-500/10 text-red-400 p-3 rounded-lg mb-4 text-sm">{txError}</div>}
 
           <form onSubmit={handleP2PSend} className="space-y-4">
             <div>
-              <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Recipient Phone</label>
-              <input type="tel" required value={txRecipient} onChange={(e) => setTxRecipient(e.target.value)}
+              {/* UPDATED: Asking for the Tag instead of Phone Number */}
+              <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Recipient Finance Tag</label>
+              <input type="text" required value={txRecipient} onChange={(e) => setTxRecipient(e.target.value)}
                 className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2a68ff]" 
-                placeholder="e.g. 0712345678" />
+                placeholder="e.g. felix_a1b2c" />
             </div>
             <div>
               <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Amount (USD)</label>
               <input type="number" step="0.01" required max={balanceUSD} value={txAmount} onChange={(e) => setTxAmount(e.target.value)}
-                className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2a68ff]" 
-                placeholder="0.00" />
+                className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2a68ff]" placeholder="0.00" />
             </div>
             <button type="submit" disabled={txLoading} className="w-full bg-[#2a68ff] hover:bg-blue-600 text-white font-bold rounded-lg py-3.5 transition mt-2">
               {txLoading ? 'Processing...' : 'Send Securely'}
@@ -183,7 +170,6 @@ export default function UserDashboard({ user, onLogout }) {
     );
   }
 
-  // === THE MISSING WITHDRAWAL VIEW ===
   if (activeView === 'WITHDRAW') {
     return (
       <div className="min-h-screen bg-slate-950 p-4 font-sans flex flex-col items-center pt-8">
@@ -200,19 +186,14 @@ export default function UserDashboard({ user, onLogout }) {
             <div>
               <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Withdrawal Method</label>
               <div className="grid grid-cols-2 gap-3">
-                <button type="button" onClick={() => setTxMethod('AGENT')} className={`p-3 rounded-lg border text-sm font-semibold transition ${txMethod === 'AGENT' ? 'bg-orange-500/20 border-orange-500 text-orange-400' : 'bg-[#1b2438] border-slate-700/50 text-slate-400'}`}>
-                  Agent (Free)
-                </button>
-                <button type="button" onClick={() => setTxMethod('MPESA')} className={`p-3 rounded-lg border text-sm font-semibold transition ${txMethod === 'MPESA' ? 'bg-orange-500/20 border-orange-500 text-orange-400' : 'bg-[#1b2438] border-slate-700/50 text-slate-400'}`}>
-                  M-Pesa (Fee)
-                </button>
+                <button type="button" onClick={() => setTxMethod('AGENT')} className={`p-3 rounded-lg border text-sm font-semibold transition ${txMethod === 'AGENT' ? 'bg-orange-500/20 border-orange-500 text-orange-400' : 'bg-[#1b2438] border-slate-700/50 text-slate-400'}`}>Agent (Free)</button>
+                <button type="button" onClick={() => setTxMethod('MPESA')} className={`p-3 rounded-lg border text-sm font-semibold transition ${txMethod === 'MPESA' ? 'bg-orange-500/20 border-orange-500 text-orange-400' : 'bg-[#1b2438] border-slate-700/50 text-slate-400'}`}>M-Pesa (Fee)</button>
               </div>
             </div>
             <div>
               <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Amount (USD)</label>
               <input type="number" step="0.01" required max={balanceUSD} value={txAmount} onChange={(e) => setTxAmount(e.target.value)}
-                className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3 focus:outline-none focus:border-orange-500"
-                placeholder="0.00" />
+                className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3 focus:outline-none focus:border-orange-500" placeholder="0.00" />
             </div>
             <button type="submit" disabled={txLoading} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-lg py-3.5 transition mt-2">
               {txLoading ? 'Processing...' : `Initiate ${txMethod === 'AGENT' ? 'Agent' : 'M-Pesa'} Withdrawal`}
@@ -234,7 +215,15 @@ export default function UserDashboard({ user, onLogout }) {
         {/* HEADER */}
         <div className="flex justify-between items-center mb-6 pt-2">
           <div>
-            <h2 className="text-xl font-bold text-slate-100 tracking-tight">Hi, {user?.full_name?.split(' ')[0] || 'User'} 👋</h2>
+            {/* UPDATED: Added the beautiful Tag Badge next to their name */}
+            <h2 className="text-xl font-bold text-slate-100 tracking-tight flex items-center gap-2">
+              Hi, {user?.full_name?.split(' ')[0] || 'User'} 👋
+              {user?.finance_tag && (
+                <span className="bg-[#2a68ff]/20 text-[#2a68ff] text-[10px] px-2 py-0.5 rounded-full border border-[#2a68ff]/30 uppercase tracking-widest font-bold">
+                  @{user.finance_tag}
+                </span>
+              )}
+            </h2>
             <p className="text-slate-500 text-sm font-medium">{user?.phone_number}</p>
           </div>
           <button onClick={onLogout} className="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-slate-400 hover:text-white transition shadow-sm text-sm">
@@ -304,7 +293,7 @@ export default function UserDashboard({ user, onLogout }) {
                   </div>
                   <div className="text-right">
                     <p className={`text-sm font-bold ${tx.type === 'BONUS' ? 'text-purple-400' : 'text-slate-200'}`}>
-                      +${Number(tx.amount).toFixed(2)}
+                      {tx.amount > 0 ? '+' : ''}${Number(tx.amount).toFixed(2)}
                     </p>
                   </div>
                 </div>
