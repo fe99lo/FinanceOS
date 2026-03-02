@@ -11,14 +11,12 @@ function App() {
   const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
-    // 1. Check for an existing session on the very first load
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) fetchUserProfile(session.user.id);
       else setIsInitializing(false);
     });
 
-    // 2. Listen for login/logout events in real-time
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
@@ -32,8 +30,9 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 3. Fetch the true database profile to get the exact Role
-  const fetchUserProfile = async (authId) => {
+  // THE FIX: Added a "retry" mechanism. If the database trigger takes a millisecond 
+  // too long to create the profile, the app will try 3 more times before giving up.
+  const fetchUserProfile = async (authId, retries = 3) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -41,37 +40,44 @@ function App() {
         .eq('auth_uid', authId)
         .single();
         
-      if (error) throw error;
+      if (error) {
+        // PGRST116 means "No rows found". If we get this, the trigger is still running.
+        if (error.code === 'PGRST116' && retries > 0) {
+          console.log(`Profile generating... Retrying in 500ms...`);
+          setTimeout(() => fetchUserProfile(authId, retries - 1), 500);
+          return;
+        }
+        throw error;
+      }
+      
       setDbProfile(data);
+      setIsInitializing(false);
+      
     } catch (err) {
-      console.error("Error fetching user profile:", err.message);
-    } finally {
+      console.error("Profile fetch error:", err.message);
       setIsInitializing(false);
     }
   };
 
-  // 4. Handle the secure logout process
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
 
-  // 5. Show a sleek loading screen while checking the vault
   if (isInitializing) {
     return (
       <div className="min-h-screen bg-[#0b1121] flex items-center justify-center">
         <div className="text-[#2a68ff] font-bold tracking-widest animate-pulse">
-          INITIALIZING SECURE CONNECTION...
+          SECURING CONNECTION...
         </div>
       </div>
     );
   }
 
-  // 6. If no active session, lock them at the Gateway
   if (!session || !dbProfile) {
-    return <AuthGateway onAuthSuccess={() => {}} />; // The listener above auto-handles the success
+    return <AuthGateway onAuthSuccess={() => {}} />; 
   }
 
-  // 7. THE SECURE ROUTING ENGINE
+  // ROUTING ENGINE
   switch (dbProfile.role) {
     case 'ADMIN':
       return <AdminDashboard user={dbProfile} onLogout={handleLogout} />;
