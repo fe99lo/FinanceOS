@@ -69,14 +69,32 @@ export default function UserDashboard({ user, onLogout }) {
 
   const handleP2PSend = async (e) => {
     e.preventDefault();
-    setTxLoading(true); setTxError('');
+    setTxLoading(true); 
+    setTxError('');
+    
     try {
-      console.log(`Sending $${txAmount} to ${txRecipient}`);
-      setTimeout(() => {
-        setTxLoading(false); setActiveView('DASHBOARD');
-      }, 1500);
+      // We call the SQL RPC function we just created in Supabase
+      const { data, error } = await supabase.rpc('p2p_transfer', {
+        sender_id: user.id,
+        recipient_phone: txRecipient,
+        transfer_amount: Number(txAmount)
+      });
+
+      if (error) throw error;
+
+      // If successful, close the modal and refresh the dashboard data
+      setTxLoading(false);
+      setTxAmount('');
+      setTxRecipient('');
+      setActiveView('DASHBOARD');
+      
+      // Force a page reload to instantly show the new balance and receipts
+      // In a later phase, we can update the state directly for a smoother feel
+      window.location.reload(); 
+
     } catch (err) {
-      setTxError(err.message); setTxLoading(false);
+      setTxError(err.message || "Transfer failed. Please check the number and try again.");
+      setTxLoading(false);
     }
   };
 
