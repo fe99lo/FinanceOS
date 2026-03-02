@@ -12,10 +12,11 @@ export default function UserDashboard({ user, onLogout }) {
   const [activeView, setActiveView] = useState('DASHBOARD'); // DASHBOARD, DEPOSIT, SEND, WITHDRAW
   const [txAmount, setTxAmount] = useState('');
   const [txRecipient, setTxRecipient] = useState('');
+  const [txMethod, setTxMethod] = useState('AGENT'); // For Withdrawals: 'AGENT' or 'MPESA'
   const [txLoading, setTxLoading] = useState(false);
   const [txError, setTxError] = useState('');
 
-  // 1. Fetch Core Data (Runs once on load)
+  // 1. Fetch Core Data
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
@@ -30,9 +31,7 @@ export default function UserDashboard({ user, onLogout }) {
 
         const rateResponse = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
         const rateData = await rateResponse.json();
-        if (rateData?.rates?.KES) {
-          setExchangeRate(rateData.rates.KES);
-        }
+        if (rateData?.rates?.KES) setExchangeRate(rateData.rates.KES);
 
         if (walletData) {
           const { data: txData, error: txError } = await supabase
@@ -54,20 +53,17 @@ export default function UserDashboard({ user, onLogout }) {
     if (user?.id) fetchDashboardData();
   }, [user]);
 
-  // 2. Transaction Handlers (The Engine Connections)
+  // 2. Transaction Handlers
   const handleMpesaDeposit = async (e) => {
     e.preventDefault();
     setTxLoading(true); setTxError('');
     try {
-      // TODO: Call Supabase Edge Function for Daraja STK Push
-      console.log(`Initiating M-Pesa STK push for ${txAmount} KES to ${user.phone_number}`);
+      console.log(`Initiating M-Pesa STK push for ${txAmount} KES`);
       setTimeout(() => {
-        setTxLoading(false);
-        setActiveView('DASHBOARD'); // Navigate back on success
+        setTxLoading(false); setActiveView('DASHBOARD');
       }, 1500);
     } catch (err) {
-      setTxError(err.message);
-      setTxLoading(false);
+      setTxError(err.message); setTxLoading(false);
     }
   };
 
@@ -75,15 +71,29 @@ export default function UserDashboard({ user, onLogout }) {
     e.preventDefault();
     setTxLoading(true); setTxError('');
     try {
-      // TODO: Call Supabase RPC for atomic wallet-to-wallet transfer
       console.log(`Sending $${txAmount} to ${txRecipient}`);
       setTimeout(() => {
-        setTxLoading(false);
-        setActiveView('DASHBOARD');
+        setTxLoading(false); setActiveView('DASHBOARD');
       }, 1500);
     } catch (err) {
-      setTxError(err.message);
-      setTxLoading(false);
+      setTxError(err.message); setTxLoading(false);
+    }
+  };
+
+  const handleWithdraw = async (e) => {
+    e.preventDefault();
+    setTxLoading(true); setTxError('');
+    try {
+      if (Number(txAmount) > balanceUSD) {
+        throw new Error("Insufficient funds for this withdrawal.");
+      }
+      console.log(`Initiating ${txMethod} withdrawal for $${txAmount}`);
+      // TODO: Call Supabase Edge Function to lock funds and alert Agent/M-Pesa
+      setTimeout(() => {
+        setTxLoading(false); setActiveView('DASHBOARD');
+      }, 1500);
+    } catch (err) {
+      setTxError(err.message); setTxLoading(false);
     }
   };
 
@@ -97,7 +107,7 @@ export default function UserDashboard({ user, onLogout }) {
     return (
       <div className="min-h-screen bg-slate-950 p-4 font-sans flex flex-col items-center pt-8">
         <div className="w-full max-w-md bg-[#151c2c] rounded-2xl p-6 border border-slate-800 shadow-2xl">
-          <button onClick={() => setActiveView('DASHBOARD')} className="text-slate-400 text-sm mb-6 flex items-center gap-2 hover:text-white transition">
+          <button onClick={() => { setActiveView('DASHBOARD'); setTxAmount(''); setTxError(''); }} className="text-slate-400 text-sm mb-6 flex items-center gap-2 hover:text-white transition">
             ← Back to Dashboard
           </button>
           <h2 className="text-2xl font-bold text-white mb-2">Deposit Funds</h2>
@@ -116,13 +126,6 @@ export default function UserDashboard({ user, onLogout }) {
               {txLoading ? 'Connecting to Safaricom...' : 'Trigger M-Pesa Express'}
             </button>
           </form>
-
-          <div className="mt-6 pt-6 border-t border-slate-800/50">
-            <p className="text-slate-400 text-xs uppercase tracking-wider mb-3 block">Alternative</p>
-            <button className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg py-3.5 transition">
-              Find a Local FinanceOS Agent
-            </button>
-          </div>
         </div>
       </div>
     );
@@ -132,12 +135,14 @@ export default function UserDashboard({ user, onLogout }) {
     return (
       <div className="min-h-screen bg-slate-950 p-4 font-sans flex flex-col items-center pt-8">
         <div className="w-full max-w-md bg-[#151c2c] rounded-2xl p-6 border border-slate-800 shadow-2xl">
-          <button onClick={() => setActiveView('DASHBOARD')} className="text-slate-400 text-sm mb-6 flex items-center gap-2 hover:text-white transition">
+          <button onClick={() => { setActiveView('DASHBOARD'); setTxAmount(''); setTxRecipient(''); setTxError(''); }} className="text-slate-400 text-sm mb-6 flex items-center gap-2 hover:text-white transition">
             ← Back to Dashboard
           </button>
           <h2 className="text-2xl font-bold text-white mb-2">Send Money</h2>
           <p className="text-slate-400 text-sm mb-6">Instantly send USD to any FinanceOS user globally.</p>
           
+          {txError && <div className="bg-red-500/10 text-red-400 p-3 rounded-lg mb-4 text-sm">{txError}</div>}
+
           <form onSubmit={handleP2PSend} className="space-y-4">
             <div>
               <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Recipient Phone</label>
@@ -147,12 +152,52 @@ export default function UserDashboard({ user, onLogout }) {
             </div>
             <div>
               <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Amount (USD)</label>
-              <input type="number" step="0.01" required value={txAmount} onChange={(e) => setTxAmount(e.target.value)}
+              <input type="number" step="0.01" required max={balanceUSD} value={txAmount} onChange={(e) => setTxAmount(e.target.value)}
                 className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2a68ff]" 
                 placeholder="0.00" />
             </div>
             <button type="submit" disabled={txLoading} className="w-full bg-[#2a68ff] hover:bg-blue-600 text-white font-bold rounded-lg py-3.5 transition mt-2">
               {txLoading ? 'Processing...' : 'Send Securely'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // === THE MISSING WITHDRAWAL VIEW ===
+  if (activeView === 'WITHDRAW') {
+    return (
+      <div className="min-h-screen bg-slate-950 p-4 font-sans flex flex-col items-center pt-8">
+        <div className="w-full max-w-md bg-[#151c2c] rounded-2xl p-6 border border-slate-800 shadow-2xl">
+          <button onClick={() => { setActiveView('DASHBOARD'); setTxAmount(''); setTxError(''); }} className="text-slate-400 text-sm mb-6 flex items-center gap-2 hover:text-white transition">
+            ← Back to Dashboard
+          </button>
+          <h2 className="text-2xl font-bold text-white mb-2">Withdraw Funds</h2>
+          <p className="text-slate-400 text-sm mb-6">Cash out via a local Agent or directly to M-Pesa.</p>
+
+          {txError && <div className="bg-red-500/10 text-red-400 p-3 rounded-lg mb-4 text-sm">{txError}</div>}
+
+          <form onSubmit={handleWithdraw} className="space-y-4">
+            <div>
+              <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Withdrawal Method</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button type="button" onClick={() => setTxMethod('AGENT')} className={`p-3 rounded-lg border text-sm font-semibold transition ${txMethod === 'AGENT' ? 'bg-orange-500/20 border-orange-500 text-orange-400' : 'bg-[#1b2438] border-slate-700/50 text-slate-400'}`}>
+                  Agent (Free)
+                </button>
+                <button type="button" onClick={() => setTxMethod('MPESA')} className={`p-3 rounded-lg border text-sm font-semibold transition ${txMethod === 'MPESA' ? 'bg-orange-500/20 border-orange-500 text-orange-400' : 'bg-[#1b2438] border-slate-700/50 text-slate-400'}`}>
+                  M-Pesa (Fee)
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Amount (USD)</label>
+              <input type="number" step="0.01" required max={balanceUSD} value={txAmount} onChange={(e) => setTxAmount(e.target.value)}
+                className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3 focus:outline-none focus:border-orange-500"
+                placeholder="0.00" />
+            </div>
+            <button type="submit" disabled={txLoading} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-lg py-3.5 transition mt-2">
+              {txLoading ? 'Processing...' : `Initiate ${txMethod === 'AGENT' ? 'Agent' : 'M-Pesa'} Withdrawal`}
             </button>
           </form>
         </div>
@@ -166,7 +211,6 @@ export default function UserDashboard({ user, onLogout }) {
   
   return (
     <div className="min-h-screen bg-slate-950 p-4 pb-24 font-sans flex flex-col items-center">
-      {/* max-w-md limits the width on huge desktop screens, keeping it looking like a perfect app */}
       <div className="w-full max-w-md">
         
         {/* HEADER */}
@@ -196,7 +240,7 @@ export default function UserDashboard({ user, onLogout }) {
           </div>
         </div>
 
-        {/* PRIMARY ACTIONS - Now wired to the State Engine */}
+        {/* PRIMARY ACTIONS */}
         <div className="grid grid-cols-3 gap-3 mb-8">
           <button onClick={() => setActiveView('DEPOSIT')} className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 hover:border-emerald-500/50 hover:bg-slate-800 transition group shadow-lg">
             <div className="w-10 h-10 bg-emerald-500/20 rounded-full flex items-center justify-center group-hover:bg-emerald-500/30 transition">
