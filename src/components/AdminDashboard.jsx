@@ -28,12 +28,19 @@ export default function AdminDashboard({ user, onLogout }) {
   // ==========================================
   // MASTER DATA FETCHER
   // ==========================================
+ // ==========================================
+  // MASTER DATA FETCHER (BULLETPROOF VERSION)
+  // ==========================================
   const fetchGodModeData = async () => {
     setLoading(true);
     try {
-      // Fetch Core Financial Data
-      const { data: profiles } = await supabase.from('profiles').select('id, role, finance_tag, account_status, full_name, phone_number');
-      const { data: wallets } = await supabase.from('wallets').select('balance');
+      // 1. Fetch Profiles (Using '*' prevents crashes if a column is missing)
+      const { data: profiles, error: profileErr } = await supabase.from('profiles').select('*');
+      if (profileErr) console.error("Vault Error (Profiles):", profileErr.message);
+
+      // 2. Fetch Wallets
+      const { data: wallets, error: walletErr } = await supabase.from('wallets').select('*');
+      if (walletErr) console.error("Vault Error (Wallets):", walletErr.message);
 
       if (profiles && wallets) {
         const users = profiles.filter(p => p.role === 'USER');
@@ -49,19 +56,22 @@ export default function AdminDashboard({ user, onLogout }) {
         });
 
         setFleetList([...agents, ...businesses]);
+      } else {
+        console.warn("Data returned null. Check your RLS policies or database connection.");
       }
 
-      // Fetch Live Telemetry Logs for Tech Ops
-      const { data: logs } = await supabase
+      // 3. Fetch Telemetry Logs
+      const { data: logs, error: logErr } = await supabase
         .from('system_logs')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(30);
-        
+      
+      if (logErr) console.error("Radar Error (Logs):", logErr.message);
       if (logs) setSystemLogs(logs);
 
     } catch (err) {
-      console.error("Dashboard sync error:", err.message);
+      console.error("Critical Dashboard crash:", err.message);
     } finally {
       setLoading(false);
     }
