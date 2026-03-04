@@ -1,53 +1,113 @@
 import { supabase } from '../supabaseClient';
-import { Profile, TelemetryLog, PaginatedResponse } from '../types/financeos';
+import { 
+  Profile, 
+  TelemetryLog, 
+  Result, 
+  CursorPage, 
+  AccountRole 
+} from '../types/financeos';
 
 // ==========================================
-// CORE FINANCE ENGINE (Decoupled from UI)
+// ENTERPRISE SERVICE ENGINE (coreEngine.ts)
 // ==========================================
 
-export const CoreEngine = {
+export class FinanceOSEngine {
   
   /**
-   * Fetches a paginated list of the fleet (Agents & Businesses) to prevent memory crashes.
-   * @param page The current page number (starts at 0)
-   * @param limit How many rows to fetch (default 50)
+   * High-Performance Cursor Pagination for Fleet Network.
+   * Scans index hashes directly instead of counting rows. O(1) time complexity.
+   * * @param limit - Max rows to return (Keep under 100 for memory safety)
+   * @param cursor - The UUID or Timestamp of the LAST item from the previous page
+   * @param signal - AbortSignal to cancel pending requests on React unmount
    */
-  async getFleetNetwork(page: number = 0, limit: number = 50): Promise<PaginatedResponse<Profile>> {
-    const from = page * limit;
-    const to = from + limit - 1;
-
+  static async getFleetNetwork(
+    limit: number = 50,
+    cursor?: string,
+    signal?: AbortSignal
+  ): Promise<Result<CursorPage<Profile>>> {
     try {
-      const { data, error, count } = await supabase
+      let query = supabase
         .from('profiles')
-        .select('*', { count: 'exact' })
-        .in('role', ['AGENT', 'BUSINESS'])
-        .range(from, to);
+        .select('*')
+        .in('role', [AccountRole.AGENT, AccountRole.BUSINESS])
+        .order('id', { ascending: true }) // Must order by unique sequential key for cursors
+        .limit(limit);
 
-      if (error) throw error;
+      if (cursor) {
+        query = query.gt('id', cursor);
+      }
 
-      return { data: data as Profile[], count: count || 0, error: null };
+      if (signal) {
+        // Tie to abort signal if provided (prevents memory leaks in UI)
+        query = query.abortSignal(signal);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw new Error(`Fleet DB Exception: ${error.message}`);
+      if (!data) return { ok: true, value: { data: [], nextCursor: null, hasMore: false } };
+
+      const typedData = data as unknown as Profile[];
+      const hasMore = typedData.length === limit;
+      const nextCursor = hasMore ? typedData[typedData.length - 1].id : null;
+
+      return {
+        ok: true,
+        value: {
+          data: typedData,
+          nextCursor,
+          hasMore
+        }
+      };
+
     } catch (err: any) {
-      console.error("Fleet Engine Error:", err.message);
-      return { data: [], count: 0, error: err.message };
+      // Catch network drops, aborts, and strict DB errors
+      if (err.name === 'AbortError') {
+        return { ok: false, error: new Error('Request aborted by client') };
+      }
+      return { ok: false, error: new Error(err.message || 'Unknown Engine Error') };
     }
-  },
+  }
 
   /**
-   * Fetches high-priority crash reports for the Glitch Radar.
+   * Fetches unresolved telemetry logs using timestamp cursors.
    */
-  async getTelemetryLogs(limit: number = 20): Promise<PaginatedResponse<TelemetryLog>> {
+  static async getActiveTelemetry(
+    limit: number = 30,
+    lastTimestampCursor?: string
+  ): Promise<Result<CursorPage<TelemetryLog>>> {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('system_logs')
         .select('*')
         .eq('resolved', false)
         .order('created_at', { ascending: false })
         .limit(limit);
 
-      if (error) throw error;
-      return { data: data as TelemetryLog[], count: data.length, error: null };
+      if (lastTimestampCursor) {
+        query = query.lt('created_at', lastTimestampCursor);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw new Error(`Telemetry DB Exception: ${error.message}`);
+      if (!data) return { ok: true, value: { data: [], nextCursor: null, hasMore: false } };
+
+      const typedData = data as unknown as TelemetryLog[];
+      const hasMore = typedData.length === limit;
+      const nextCursor = hasMore ? typedData[typedData.length - 1].created_at : null;
+
+      return {
+        ok: true,
+        value: {
+          data: typedData,
+          nextCursor,
+          hasMore
+        }
+      };
+
     } catch (err: any) {
-      return { data: [], count: 0, error: err.message };
+      return { ok: false, error: new Error(err.message || 'Unknown Telemetry Error') };
     }
   }
-};
+}

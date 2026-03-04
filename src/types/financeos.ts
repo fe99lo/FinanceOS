@@ -1,48 +1,63 @@
 // ==========================================
-// FINANCEOS STRICT DATA TYPES
+// ENTERPRISE DOMAIN TYPES (financeos.ts)
 // ==========================================
 
-export enum Role {
+// 1. BRANDED TYPES (Memory zero-cost, compile-time absolute safety)
+export type ProfileId = string & { readonly __brand: unique symbol };
+export type WalletId = string & { readonly __brand: unique symbol };
+export type TransactionId = string & { readonly __brand: unique symbol };
+export type IsoDateString = string & { readonly __brand: unique symbol };
+
+// 2. CONST ENUMS (Compiles away to raw strings, saving memory)
+export const enum AccountRole {
   USER = 'USER',
   AGENT = 'AGENT',
   BUSINESS = 'BUSINESS',
   ADMIN = 'ADMIN'
 }
 
-export enum AccountStatus {
+export const enum AccountStatus {
   ACTIVE = 'ACTIVE',
   FROZEN = 'FROZEN'
 }
 
-export interface Profile {
-  id: string; // UUID
-  role: Role;
-  finance_tag: string;
-  account_status: AccountStatus;
-  full_name: string;
-  phone_number: string;
+export const enum LogSeverity {
+  INFO = 'INFO',
+  WARNING = 'WARNING',
+  CRITICAL_ERROR = 'CRITICAL_ERROR'
 }
 
-export interface Wallet {
-  id: string; // UUID
-  profile_id: string; // Linked to Profile
-  balance: number; // MUST be a strict number for math
-  escrow_balance: number;
+// 3. STRICT INTERFACES
+export interface Profile {
+  readonly id: ProfileId;
+  readonly role: AccountRole;
+  readonly finance_tag: string;
+  readonly account_status: AccountStatus;
+  readonly full_name: string;
+  readonly phone_number: string;
+  readonly created_at: IsoDateString;
 }
 
 export interface TelemetryLog {
-  id: string;
-  severity: 'INFO' | 'WARNING' | 'CRITICAL_ERROR';
-  source: string;
-  message: string;
-  user_tag?: string;
-  resolved: boolean;
-  created_at: string;
+  readonly id: string;
+  readonly severity: LogSeverity;
+  readonly source: string;
+  readonly message: string;
+  readonly user_tag?: string;
+  readonly resolved: boolean;
+  readonly created_at: IsoDateString;
 }
 
-// Pagination Interface for the Admin Dashboard
-export interface PaginatedResponse<T> {
-  data: T[];
-  count: number;
-  error: string | null;
+// 4. THE MONADIC RESULT PATTERN (Never throw silent errors again)
+// Forces the UI to explicitly check 'if (res.ok)' before accessing data
+export type Result<T, E = Error> = 
+  | { ok: true; value: T }
+  | { ok: false; error: E };
+
+// 5. CURSOR PAGINATION STATE
+// Required for querying millions of rows without crashing the DB
+export interface CursorPage<T> {
+  readonly data: T[];
+  readonly nextCursor: string | null; // Null means end of list
+  readonly hasMore: boolean;
 }
