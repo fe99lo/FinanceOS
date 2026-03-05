@@ -22,7 +22,7 @@ export default function MpesaComingSoonCard() {
             Direct M-Pesa Bridge Coming soon
           </h3>
           <p className="text-slate-400 text-[11px] leading-tight mt-0.5">
-            Undergoing final security audits.
+            Undergoing final Mpesa security audits.
           </p>
         </div>
       </div>
