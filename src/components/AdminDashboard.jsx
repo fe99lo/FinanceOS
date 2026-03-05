@@ -1,80 +1,72 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient.js';
+import { FinanceOSEngine } from '../services/coreEngine.ts';
+
+// Helper to mathematically convert strict Cents back to display currency
+const formatMoney = (cents) => {
+  if (typeof cents !== 'number') return '0.00';
+  return (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
 export default function AdminDashboard({ user, onLogout }) {
   // 1. Navigation State
-  const [activeDept, setActiveDept] = useState('TECH_OPS'); // FINANCE, AGENT_OPS, SALES, SECURITY, TECH_OPS
+  const [activeDept, setActiveDept] = useState('TECH_OPS'); 
   
-  // 2. Global Metrics & Data States
+  // 2. Data States
   const [loading, setLoading] = useState(true);
-  const [systemStats, setSystemStats] = useState({ totalUsers: 0, totalAgents: 0, totalBusinesses: 0, deployedFloat: 0 });
+  const [globalError, setGlobalError] = useState(null);
+  
+  const [systemStats, setSystemStats] = useState({ total_users: 0, total_agents: 0, total_businesses: 0, deployed_float: 0 });
   const [fleetList, setFleetList] = useState([]);
   const [systemLogs, setSystemLogs] = useState([]);
   
-  // 3. Terminal States: Finance & Agent Ops
+  // 3. Terminal Input States
   const [businessTag, setBusinessTag] = useState('');
   const [onboardTag, setOnboardTag] = useState('');
   const [targetAgentTag, setTargetAgentTag] = useState('');
   const [floatAmount, setFloatAmount] = useState('');
-  
-  // 4. Terminal States: Sales & Marketing
-  const [currentJazia, setCurrentJazia] = useState(50.00); 
   const [newJazia, setNewJazia] = useState('');
-  
-  // 5. Terminal States: Security Radar
+  const [currentJazia, setCurrentJazia] = useState(5000); // 5000 cents = $50.00
   const [searchQuery, setSearchQuery] = useState('');
   const [searchedUser, setSearchedUser] = useState(null);
 
   // ==========================================
-  // MASTER DATA FETCHER
-  // ==========================================
- // ==========================================
-  // MASTER DATA FETCHER (BULLETPROOF VERSION)
+  // MASTER DATA FETCHER (Powered by coreEngine)
   // ==========================================
   const fetchGodModeData = async () => {
     setLoading(true);
-    try {
-      // 1. Fetch Profiles (Using '*' prevents crashes if a column is missing)
-      const { data: profiles, error: profileErr } = await supabase.from('profiles').select('*');
-      if (profileErr) console.error("Vault Error (Profiles):", profileErr.message);
+    setGlobalError(null);
+    
+    // Fetch all 3 high-speed queries at the exact same time
+    const [metricsRes, fleetRes, logsRes] = await Promise.all([
+      FinanceOSEngine.getSystemMetrics(),
+      FinanceOSEngine.getFleetNetwork(50),
+      FinanceOSEngine.getActiveTelemetry(30)
+    ]);
 
-      // 2. Fetch Wallets
-      const { data: wallets, error: walletErr } = await supabase.from('wallets').select('*');
-      if (walletErr) console.error("Vault Error (Wallets):", walletErr.message);
-
-      if (profiles && wallets) {
-        const users = profiles.filter(p => p.role === 'USER');
-        const agents = profiles.filter(p => p.role === 'AGENT');
-        const businesses = profiles.filter(p => p.role === 'BUSINESS');
-        const totalDeployed = wallets.reduce((sum, wallet) => sum + Number(wallet.balance), 0);
-
-        setSystemStats({
-          totalUsers: users.length,
-          totalAgents: agents.length,
-          totalBusinesses: businesses.length,
-          deployedFloat: totalDeployed
-        });
-
-        setFleetList([...agents, ...businesses]);
-      } else {
-        console.warn("Data returned null. Check your RLS policies or database connection.");
-      }
-
-      // 3. Fetch Telemetry Logs
-      const { data: logs, error: logErr } = await supabase
-        .from('system_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(30);
-      
-      if (logErr) console.error("Radar Error (Logs):", logErr.message);
-      if (logs) setSystemLogs(logs);
-
-    } catch (err) {
-      console.error("Critical Dashboard crash:", err.message);
-    } finally {
-      setLoading(false);
+    // Process Metrics (The Sharded Database RPC)
+    if (metricsRes.ok) {
+      setSystemStats(metricsRes.value);
+    } else {
+      console.error("Metrics failed:", metricsRes.error.message);
+      setGlobalError("Failed to sync live Treasury metrics.");
     }
+
+    // Process Fleet (Paginated)
+    if (fleetRes.ok) {
+      setFleetList(fleetRes.value.data);
+    } else {
+      console.error("Fleet failed:", fleetRes.error.message);
+    }
+
+    // Process Glitch Radar (Paginated)
+    if (logsRes.ok) {
+      setSystemLogs(logsRes.value.data);
+    } else {
+      console.error("Logs failed:", logsRes.error.message);
+    }
+
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -82,15 +74,13 @@ export default function AdminDashboard({ user, onLogout }) {
   }, [activeDept]);
 
   // ==========================================
-  // DEPARTMENT EXECUTIONS
+  // DEPARTMENT EXECUTIONS (Write Operations)
   // ==========================================
   
-  // FINANCE
   const handleOnboardBusiness = async (e) => {
     e.preventDefault();
     const cleanTag = businessTag.replace('@', '').trim().toLowerCase();
     if (!window.confirm(`Promote @${cleanTag} to a BUSINESS Merchant Account?`)) return;
-
     try {
       const { error } = await supabase.from('profiles').update({ role: 'BUSINESS' }).eq('finance_tag', cleanTag);
       if (error) throw error;
@@ -99,12 +89,10 @@ export default function AdminDashboard({ user, onLogout }) {
     } catch (err) { alert("Promotion failed: " + err.message); }
   };
 
-  // AGENT OPS
   const handleOnboardAgent = async (e) => {
     e.preventDefault();
     const cleanTag = onboardTag.replace('@', '').trim().toLowerCase();
     if (!window.confirm(`Promote @${cleanTag} to AGENT status?`)) return;
-
     try {
       const { error } = await supabase.from('profiles').update({ role: 'AGENT' }).eq('finance_tag', cleanTag);
       if (error) throw error;
@@ -115,12 +103,14 @@ export default function AdminDashboard({ user, onLogout }) {
 
   const handleMintFloat = async (e) => {
     e.preventDefault();
+    // MATHEMATICAL SAFETY: Convert input to strict Cents before sending to DB
+    const amountInCents = Math.round(parseFloat(floatAmount) * 100); 
     if (!window.confirm(`WARNING: Deploying $${floatAmount} to @${targetAgentTag}. Proceed?`)) return;
     try {
       const { error } = await supabase.rpc('allocate_agent_float', {
         admin_uuid: user.id,
         target_agent_tag: targetAgentTag,
-        amount_usd: parseFloat(floatAmount)
+        amount_usd: amountInCents 
       });
       if (error) throw error;
       alert(`SUCCESS: $${floatAmount} deployed.`);
@@ -128,20 +118,19 @@ export default function AdminDashboard({ user, onLogout }) {
     } catch (err) { alert("Allocation Failed: " + err.message); }
   };
 
-  // SALES
   const handleUpdateJazia = async (e) => {
     e.preventDefault();
     if (!window.confirm(`Update the global Jazia signup bonus to $${newJazia}?`)) return;
+    // MATHEMATICAL SAFETY: Convert input to strict Cents
+    const amountInCents = Math.round(parseFloat(newJazia) * 100);
     try {
-      // Update the secure system settings table
-      await supabase.from('system_settings').upsert({ key: 'jazia_bonus_amount', value: parseFloat(newJazia) });
-      setCurrentJazia(parseFloat(newJazia));
+      await supabase.from('system_settings').upsert({ key: 'jazia_bonus_amount', value: amountInCents });
+      setCurrentJazia(amountInCents);
       setNewJazia('');
       alert("Marketing acquisition algorithm updated.");
     } catch (err) { alert("Failed to update system settings."); }
   };
 
-  // SECURITY
   const handleSecuritySearch = async (e) => {
     e.preventDefault();
     const cleanQuery = searchQuery.replace('@', '').trim().toLowerCase();
@@ -161,7 +150,6 @@ export default function AdminDashboard({ user, onLogout }) {
       : "Are you sure you want to UNFREEZE this account?";
 
     if (!window.confirm(msg)) return;
-
     try {
       const { error } = await supabase.from('profiles').update({ account_status: newStatus }).eq('id', targetId);
       if (error) throw error;
@@ -206,30 +194,33 @@ export default function AdminDashboard({ user, onLogout }) {
       {/* 🖥️ MAIN CONTENT AREA */}
       <div className="hidden md:block flex-1 p-8 overflow-y-auto h-screen bg-gradient-to-br from-[#070b14] to-[#0a0f1c]">
         
+        {globalError && (
+          <div className="mb-6 p-4 bg-red-900/40 border border-red-500/50 rounded-xl text-red-200 text-sm font-bold">
+            ⚠️ {globalError}
+          </div>
+        )}
+
         {/* ========================================== */}
         {/* DEPARTMENT 1: TECH OPS & GLITCH RADAR      */}
         {/* ========================================== */}
         {activeDept === 'TECH_OPS' && (
           <div className="animate-fade-in">
             <h2 className="text-3xl font-black text-white mb-6">Tech Ops & Glitch Radar</h2>
-
             <div className="grid grid-cols-3 gap-6 mb-8">
               <div className="bg-[#151c2c] border border-emerald-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 rounded-full blur-xl"></div>
                 <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest mb-2">FinanceOS Core DB</p>
-                <h3 className="text-2xl font-black text-white flex items-center gap-2">ONLINE <span className="text-emerald-500 text-[10px] uppercase bg-emerald-500/10 px-2 py-1 rounded">12ms ping</span></h3>
+                <h3 className="text-2xl font-black text-white flex items-center gap-2">ONLINE <span className="text-emerald-500 text-[10px] uppercase bg-emerald-500/10 px-2 py-1 rounded">Fast Shards</span></h3>
               </div>
-              
               <div className="bg-[#151c2c] border border-amber-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/10 rounded-full blur-xl"></div>
                 <p className="text-amber-500 text-xs font-bold uppercase tracking-widest mb-2">Safaricom Daraja API</p>
                 <h3 className="text-2xl font-black text-white flex items-center gap-2">STANDBY <span className="text-amber-500 text-[10px] uppercase bg-amber-500/10 px-2 py-1 rounded">Awaiting Auth</span></h3>
               </div>
-
               <div className="bg-[#151c2c] border border-red-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-16 h-16 bg-red-500/10 rounded-full blur-xl"></div>
                 <p className="text-red-500 text-xs font-bold uppercase tracking-widest mb-2">Unresolved Glitches</p>
-                <h3 className="text-4xl font-black text-white">{systemLogs.filter(l => !l.resolved).length}</h3>
+                <h3 className="text-4xl font-black text-white">{systemLogs.length}</h3>
               </div>
             </div>
 
@@ -238,7 +229,6 @@ export default function AdminDashboard({ user, onLogout }) {
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Live Telemetry & Crash Feed</h3>
                 <button onClick={fetchGodModeData} className="text-[10px] uppercase tracking-widest font-bold bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded transition">Refresh Feed</button>
               </div>
-              
               <div className="p-2 h-96 overflow-y-auto font-mono text-sm">
                 {systemLogs.length === 0 ? (
                   <p className="text-slate-500 text-center py-10">System operating flawlessly. No errors detected.</p>
@@ -250,7 +240,6 @@ export default function AdminDashboard({ user, onLogout }) {
                           <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${log.severity === 'CRITICAL_ERROR' ? 'bg-red-500 text-white' : log.severity === 'WARNING' ? 'bg-amber-500 text-black' : 'bg-slate-600 text-white'}`}>
                             {log.severity}
                           </span>
-                          <span className="text-slate-500 text-[10px]">{new Date(log.created_at).toLocaleTimeString()}</span>
                         </div>
                         <span className="text-slate-500 text-[10px] font-bold">SRC: {log.source}</span>
                       </div>
@@ -272,21 +261,21 @@ export default function AdminDashboard({ user, onLogout }) {
             <h2 className="text-3xl font-black text-white mb-6">Finance & Business Ecosystem</h2>
             <div className="grid grid-cols-3 gap-6 mb-8">
               <div className="bg-[#151c2c] border border-slate-800 rounded-2xl p-6 shadow-xl">
-                <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-2">Deployed Liquidity</p>
-                <h3 className="text-4xl font-black text-[#2a68ff]">${loading ? '...' : systemStats.deployedFloat.toFixed(2)}</h3>
+                <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-2">Deployed Liquidity (Liability)</p>
+                {/* Notice the formatMoney helper handling the Cents here! */}
+                <h3 className="text-4xl font-black text-[#2a68ff]">${loading ? '...' : formatMoney(systemStats.deployed_float)}</h3>
               </div>
               <div className="bg-[#151c2c] border border-slate-800 rounded-2xl p-6 shadow-xl">
                 <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-2">Total Users</p>
-                <h3 className="text-4xl font-black text-white">{loading ? '...' : systemStats.totalUsers}</h3>
+                <h3 className="text-4xl font-black text-white">{loading ? '...' : systemStats.total_users}</h3>
               </div>
               <div className="bg-[#151c2c] border border-purple-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/10 rounded-full blur-xl"></div>
-                <p className="text-purple-400 text-xs font-bold uppercase tracking-widest mb-2">Business Accounts</p>
-                <h3 className="text-4xl font-black text-white relative z-10">{loading ? '...' : systemStats.totalBusinesses}</h3>
+                <p className="text-purple-400 text-xs font-bold uppercase tracking-widest mb-2 relative z-10">Business Accounts</p>
+                <h3 className="text-4xl font-black text-white relative z-10">{loading ? '...' : systemStats.total_businesses}</h3>
               </div>
             </div>
-
-            <div className="bg-[#151c2c] border border-slate-800 p-6 rounded-2xl shadow-xl max-w-xl">
+             <div className="bg-[#151c2c] border border-slate-800 p-6 rounded-2xl shadow-xl max-w-xl">
               <h3 className="font-bold text-white mb-4 flex items-center gap-2"><span className="text-[#2a68ff]">🏢</span> Onboard Merchant Account</h3>
               <p className="text-xs text-slate-400 mb-4">Upgrading a user to a BUSINESS role lifts standard P2P transfer limits.</p>
               <form onSubmit={handleOnboardBusiness} className="flex gap-3">
@@ -304,7 +293,6 @@ export default function AdminDashboard({ user, onLogout }) {
           <div className="animate-fade-in">
              <h2 className="text-3xl font-black text-white mb-6">Agent Fleet Manager</h2>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              
               <div className="bg-[#151c2c] border border-slate-800 p-6 rounded-2xl shadow-xl">
                 <h3 className="font-bold text-white mb-4 flex items-center gap-2"><span className="text-emerald-500">✦</span> Promote User to Agent</h3>
                 <form onSubmit={handleOnboardAgent} className="flex gap-3">
@@ -334,12 +322,11 @@ export default function AdminDashboard({ user, onLogout }) {
                   <tr className="bg-[#0b1121] text-slate-500 text-[10px] uppercase tracking-widest">
                     <th className="p-4 font-bold border-b border-slate-800">Partner Details</th>
                     <th className="p-4 font-bold border-b border-slate-800">Role</th>
-                    <th className="p-4 font-bold border-b border-slate-800">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan="3" className="p-8 text-center text-slate-500">Scanning network...</td></tr>
+                    <tr><td colSpan="2" className="p-8 text-center text-slate-500">Scanning network...</td></tr>
                   ) : fleetList.map(partner => (
                     <tr key={partner.id} className="hover:bg-slate-800/30 transition-colors">
                       <td className="p-4 border-b border-slate-800/50">
@@ -349,11 +336,6 @@ export default function AdminDashboard({ user, onLogout }) {
                       <td className="p-4 border-b border-slate-800/50">
                         <span className={`text-[10px] px-2 py-1 rounded-md uppercase font-bold border ${partner.role === 'BUSINESS' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>
                           {partner.role}
-                        </span>
-                      </td>
-                      <td className="p-4 border-b border-slate-800/50">
-                        <span className={`text-[10px] px-2 py-1 rounded-md uppercase font-bold border ${partner.account_status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>
-                          {partner.account_status}
                         </span>
                       </td>
                     </tr>
@@ -381,7 +363,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 </div>
                 <div className="mb-6">
                   <p className="text-slate-500 text-[10px] uppercase font-bold tracking-widest mb-1">Current Global Reward</p>
-                  <p className="text-5xl font-black text-white">${currentJazia.toFixed(2)}</p>
+                  <p className="text-5xl font-black text-white">${formatMoney(currentJazia)}</p>
                 </div>
                 <form onSubmit={handleUpdateJazia} className="flex gap-3">
                   <input type="number" required min="0" step="0.5" placeholder="New Amount ($)" value={newJazia} onChange={e => setNewJazia(e.target.value)} className="w-1/2 bg-[#0b1121] border border-slate-700/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-purple-500 transition font-mono" />
@@ -414,7 +396,7 @@ export default function AdminDashboard({ user, onLogout }) {
                     <div className="flex gap-6 mb-8">
                       <div>
                         <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold mb-1">Vault Balance</p>
-                        <p className="text-2xl font-black text-white">${searchedUser.wallets[0]?.balance.toFixed(2) || '0.00'}</p>
+                        <p className="text-2xl font-black text-white">${formatMoney(searchedUser.wallets[0]?.balance)}</p>
                       </div>
                       <div>
                         <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold mb-1">Current Status</p>
