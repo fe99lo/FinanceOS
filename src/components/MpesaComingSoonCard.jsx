@@ -19,7 +19,7 @@ export default function MpesaComingSoonCard() {
         {/* Text Content */}
         <div>
           <h3 className="text-white text-[13px] font-bold tracking-tight">
-            Direct M-Pesa Bridge
+            Direct M-Pesa Bridge Coming soon
           </h3>
           <p className="text-slate-400 text-[11px] leading-tight mt-0.5">
             Undergoing final security audits.
