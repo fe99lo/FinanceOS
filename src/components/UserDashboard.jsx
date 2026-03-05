@@ -9,10 +9,10 @@ export default function UserDashboard({ user, onLogout }) {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Navigation / Modal Engine State (UNTOUCHED)
+  // Navigation / Modal Engine State
   const [activeView, setActiveView] = useState('DASHBOARD'); 
   const [txAmount, setTxAmount] = useState('');
-  const [txRecipient, setTxRecipient] = useState(''); // Now used for the @tag
+  const [txRecipient, setTxRecipient] = useState('');
   const [txMethod, setTxMethod] = useState('AGENT'); 
   const [txLoading, setTxLoading] = useState(false);
   const [txError, setTxError] = useState('');
@@ -70,12 +70,11 @@ export default function UserDashboard({ user, onLogout }) {
     e.preventDefault();
     setTxLoading(true); setTxError('');
     try {
-      // Clean up the input just in case they typed the "@" symbol themselves
       const cleanTag = txRecipient.replace('@', '').trim().toLowerCase();
       
       const { data, error } = await supabase.rpc('p2p_transfer', {
         sender_id: user.id,
-        recipient_tag: cleanTag, // Now sending the tag to the backend!
+        recipient_tag: cleanTag,
         transfer_amount: Number(txAmount)
       });
 
@@ -107,7 +106,7 @@ export default function UserDashboard({ user, onLogout }) {
   const balanceKES = exchangeRate ? (balanceUSD * exchangeRate).toFixed(2) : '...';
 
   // ==========================================
-  // VIEW RENDERERS (Styling untouched)
+  // VIEW RENDERERS
   // ==========================================
 
   if (activeView === 'DEPOSIT') {
@@ -151,7 +150,6 @@ export default function UserDashboard({ user, onLogout }) {
 
           <form onSubmit={handleP2PSend} className="space-y-4">
             <div>
-              {/* UPDATED: Asking for the Tag instead of Phone Number */}
               <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Recipient Finance Tag</label>
               <input type="text" required value={txRecipient} onChange={(e) => setTxRecipient(e.target.value)}
                 className="w-full bg-[#1b2438] text-white border border-slate-700/50 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2a68ff]" 
@@ -216,7 +214,6 @@ export default function UserDashboard({ user, onLogout }) {
         {/* HEADER */}
         <div className="flex justify-between items-center mb-6 pt-2">
           <div>
-            {/* UPDATED: Added the beautiful Tag Badge next to their name */}
             <h2 className="text-xl font-bold text-slate-100 tracking-tight flex items-center gap-2">
               Hi, {user?.full_name?.split(' ')[0] || 'User'} 👋
               {user?.finance_tag && (
@@ -231,6 +228,9 @@ export default function UserDashboard({ user, onLogout }) {
             Log Out
           </button>
         </div>
+
+        {/* 🚀 M-PESA PHASE 2 ANNOUNCEMENT CARD INSERTED HERE 🚀 */}
+        <MpesaComingSoonCard />
 
         {/* DYNAMIC GLOBAL BALANCE CARD */}
         <div className="bg-gradient-to-br from-blue-600 to-indigo-800 rounded-3xl p-6 shadow-2xl shadow-blue-900/20 mb-6 relative overflow-hidden">
