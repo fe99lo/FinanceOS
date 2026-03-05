@@ -1,6 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient.js'; 
 
+import MpesaComingSoonCard from './MpesaComingSoonCard';
+
+export default function UserDashboard() {
+  return (
+    <div className="p-8">
+      {/* Drop the announcement right at the top of the main content area */}
+      <MpesaComingSoonCard />
+      
+      {/* The rest of your normal User Dashboard below... */}
+      <div className="grid grid-cols-2 gap-6">
+        <WalletBalanceCard />
+        <TransactionHistory />
+      </div>
+    </div>
+  );
+}
+
 export default function UserDashboard({ user, onLogout }) {
   // Core Financial State
   const [balanceUSD, setBalanceUSD] = useState(0); 
