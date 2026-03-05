@@ -8,16 +8,48 @@ import {
 } from '../types/financeos';
 
 // ==========================================
-// ENTERPRISE SERVICE ENGINE (coreEngine.ts)
+// 1. ENGINE SPECIFIC TYPES
 // ==========================================
+export interface SystemMetrics {
+  readonly total_users: number;
+  readonly total_agents: number;
+  readonly total_businesses: number;
+  readonly deployed_float: number;
+}
 
+// ==========================================
+// 2. ENTERPRISE SERVICE ENGINE
+// ==========================================
 export class FinanceOSEngine {
   
   /**
-   * High-Performance Cursor Pagination for Fleet Network.
+   * High-Frequency Metrics Fetcher
+   * Calls the distributed sharded counter RPC. Returns real-time math in < 1ms.
+   */
+  static async getSystemMetrics(): Promise<Result<SystemMetrics>> {
+    try {
+      const { data, error } = await supabase.rpc('get_realtime_system_metrics');
+      
+      if (error) throw new Error(`Metrics RPC Exception: ${error.message}`);
+      if (!data) throw new Error("Metrics returned null.");
+
+      return { 
+        ok: true, 
+        value: data as SystemMetrics 
+      };
+    } catch (err: any) {
+      return { 
+        ok: false, 
+        error: new Error(err.message || 'Unknown Metrics Error') 
+      };
+    }
+  }
+
+  /**
+   * High-Performance Cursor Pagination for the Partner Network.
    * Scans index hashes directly instead of counting rows. O(1) time complexity.
    * * @param limit - Max rows to return (Keep under 100 for memory safety)
-   * @param cursor - The UUID or Timestamp of the LAST item from the previous page
+   * @param cursor - The UUID of the LAST item from the previous page
    * @param signal - AbortSignal to cancel pending requests on React unmount
    */
   static async getFleetNetwork(
@@ -30,7 +62,7 @@ export class FinanceOSEngine {
         .from('profiles')
         .select('*')
         .in('role', [AccountRole.AGENT, AccountRole.BUSINESS])
-        .order('id', { ascending: true }) // Must order by unique sequential key for cursors
+        .order('id', { ascending: true }) 
         .limit(limit);
 
       if (cursor) {
@@ -38,7 +70,6 @@ export class FinanceOSEngine {
       }
 
       if (signal) {
-        // Tie to abort signal if provided (prevents memory leaks in UI)
         query = query.abortSignal(signal);
       }
 
@@ -61,7 +92,6 @@ export class FinanceOSEngine {
       };
 
     } catch (err: any) {
-      // Catch network drops, aborts, and strict DB errors
       if (err.name === 'AbortError') {
         return { ok: false, error: new Error('Request aborted by client') };
       }
@@ -74,7 +104,8 @@ export class FinanceOSEngine {
    */
   static async getActiveTelemetry(
     limit: number = 30,
-    lastTimestampCursor?: string
+    lastTimestampCursor?: string,
+    signal?: AbortSignal
   ): Promise<Result<CursorPage<TelemetryLog>>> {
     try {
       let query = supabase
@@ -86,6 +117,10 @@ export class FinanceOSEngine {
 
       if (lastTimestampCursor) {
         query = query.lt('created_at', lastTimestampCursor);
+      }
+      
+      if (signal) {
+        query = query.abortSignal(signal);
       }
 
       const { data, error } = await query;
@@ -107,6 +142,9 @@ export class FinanceOSEngine {
       };
 
     } catch (err: any) {
+      if (err.name === 'AbortError') {
+        return { ok: false, error: new Error('Request aborted by client') };
+      }
       return { ok: false, error: new Error(err.message || 'Unknown Telemetry Error') };
     }
   }
